@@ -1,0 +1,32 @@
+# node_modules
+client/node_modules/
+server/node_modules/
+
+client/.pnp
+client/.pnp.js
+
+# build
+client/build/
+
+# coverage
+client/coverage
+
+# .envファイル（環境変数）
+*.env
+
+# OSごとの不要ファイル
+.DS_Store
+
+# logファイル
+*.log
+
+# npm debug log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VSCode設定（チーム開発しないなら無視でもOK）
+.vscode/
+
+# Macのファイル
+.DS_Store
