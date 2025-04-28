@@ -15,17 +15,17 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
-  console.log("✅ ユーザー接続:", socket.id);
+  console.log("✅ user connected:", socket.id);
 
   socket.on("send_message", (data) => {
     io.emit("receive_message", data);
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ ユーザー切断:", socket.id);
+    console.log("❌ user disconnected:", socket.id);
   });
 });
 
 server.listen(3001, () => {
-  console.log("🚀 サーバー起動中 http://localhost:3001");
+  console.log("🚀 Server running at http://localhost:3001");
 });

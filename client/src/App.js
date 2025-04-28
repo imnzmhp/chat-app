@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://192.168.50.29:3001");
+const socket = io("http://localhost:3001");
 
 function App() {
   const [message, setMessage] = useState("");
@@ -30,7 +30,7 @@ function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>🗨️ チャットアプリ</h1>
+      <h1>チャットアプリ</h1>
 
       {!username ? (
         // ✅ ユーザー名を入力する画面（最初だけ表示）
@@ -69,7 +69,7 @@ function App() {
           </div>
           <div style={{ marginTop: 20 }}>
             {chat.map((msg, i) => (
-              <div key={i}>💬 {msg}</div>
+              <div key={i}>{msg}</div>
             ))}
           </div>
           <button
@@ -78,7 +78,7 @@ function App() {
               setUsername("");
             }}
           >
-            名前を変更する
+            ニックネームを変更する
           </button>
         </>
       )}
