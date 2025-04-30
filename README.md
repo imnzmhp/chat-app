@@ -12,6 +12,10 @@ chat-app
 │      └── index.js
 ├── server
 │   └── index.js（サーバー）
+│       └── models
+│           └── User.js
+│       └── routes
+│           └── auth.js
 ```
 
 ## 技術スタック
