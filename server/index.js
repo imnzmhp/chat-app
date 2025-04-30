@@ -16,7 +16,6 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
-// 認証APIのルーティング
 app.use("/api/auth", authRoutes);
 
 // MongoDB接続
@@ -99,20 +98,36 @@ io.on("connection", (socket) => {
     console.log(
       `🔵 ${socket.id} joined room ${roomId} (delete timer cancelled)`
     );
+    const username = userUsernames[socket.id] || "不明ユーザー";
+    io.to(roomId).emit("receiveMessage", {
+      message: `${username} が入室しました`,
+      sender: "System",
+    });
   });
 
-  // メッセージ送信
+  socket.on("leaveRoom", (roomId) => {
+    const username = userUsernames[socket.id] || "不明ユーザー";
+    socket.leave(roomId);
+    io.to(roomId).emit("receiveMessage", {
+      message: `${username} が退室しました`,
+      sender: "System",
+    });
+    console.log(`🔴 ${username} left room ${roomId}`);
+  });
+
   socket.on("sendMessage", ({ roomId, message }) => {
     const sender = userUsernames[socket.id] || "Unknown";
     io.to(roomId).emit("receiveMessage", { message, sender });
   });
 
   socket.on("disconnecting", async () => {
+    const username = userUsernames[socket.id] || "不明ユーザー";
+
     for (const roomId of socket.rooms) {
       if (roomId !== socket.id) {
         const socketsInRoom = await io.in(roomId).fetchSockets();
         if (socketsInRoom.length === 1) {
-          const deletionTime = new Date(Date.now() + 60000); // 1分後
+          const deletionTime = new Date(Date.now() + 60000);
           await Room.findByIdAndUpdate(roomId, {
             scheduledDeleteAt: deletionTime,
           });
@@ -120,6 +135,12 @@ io.on("connection", (socket) => {
             `🕒 Room ${roomId} scheduled for deletion at ${deletionTime.toISOString()}`
           );
         }
+
+        io.to(roomId).emit("receiveMessage", {
+          message: `${username} が退室しました`,
+          sender: "System",
+        });
+        console.log(`🔴 ${username} left room ${roomId}`);
       }
     }
   });

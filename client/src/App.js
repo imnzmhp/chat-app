@@ -90,6 +90,7 @@ function App() {
   };
 
   const joinRoom = (roomId) => {
+    socket.emit("setUsername", userId);
     socket.emit("joinRoom", roomId);
     setCurrentRoom(roomId);
     setMessages([]);
@@ -269,6 +270,7 @@ function App() {
             <button
               style={{ marginTop: "10px" }}
               onClick={() => {
+                socket.emit("leaveRoom", currentRoom);
                 setCurrentRoom(null);
                 setMessages([]);
               }}
