@@ -28,26 +28,28 @@ function App() {
       setMessages((prev) => [...prev, { message, sender }]);
     });
 
+    socket.on("chatHistory", (history) => {
+      setMessages(history);
+    });
+
     return () => {
       socket.off("receiveMessage");
+      socket.off("chatHistory");
     };
   }, []);
 
-  // ルーム一覧を取得する関数
   const fetchRooms = async () => {
     const res = await axios.get(ROOM_API);
     setRooms(res.data);
   };
 
-  // ログイン成功時の処理
   const handleLoginSuccess = (userId) => {
     localStorage.setItem("userId", userId);
     setUserId(userId);
     setMessage("");
-    socket.emit("setUsername", userId); // ← 追加するのはここ！
+    socket.emit("setUsername", userId);
   };
 
-  // 新規登録処理
   const handleRegister = async () => {
     try {
       const res = await axios.post(`${API_BASE}/register`, {
@@ -60,7 +62,6 @@ function App() {
     }
   };
 
-  // ログイン処理
   const handleLogin = async () => {
     try {
       const res = await axios.post(`${API_BASE}/login`, {
@@ -73,7 +74,6 @@ function App() {
     }
   };
 
-  // ログアウト処理
   const handleLogout = () => {
     localStorage.removeItem("userId");
     setUserId("");
@@ -84,7 +84,6 @@ function App() {
     setMessages([]);
   };
 
-  // ルーム作成処理
   const createRoom = async () => {
     if (!roomName.trim()) return;
     try {
@@ -104,7 +103,6 @@ function App() {
     }
   };
 
-  // ルームに入室する処理
   const joinRoom = (name) => {
     socket.emit("setUsername", userId);
     socket.emit("joinRoom", {
@@ -115,7 +113,6 @@ function App() {
     setMessages([]);
   };
 
-  // メッセージ送信処理
   const sendMessage = () => {
     if (messageInput.trim() && currentRoom) {
       socket.emit("sendMessage", {
@@ -127,7 +124,6 @@ function App() {
     }
   };
 
-  // ルーム削除処理
   const deleteRoom = async (roomName) => {
     await axios.post(`${ROOM_API}/${roomName}/delete`, {
       requesterUserId: userId,
@@ -143,7 +139,6 @@ function App() {
     return (
       <div style={{ padding: "20px" }}>
         <h1>{authMode === "register" ? "新規登録" : "ログイン"}</h1>
-
         {authMode === "register" ? (
           <>
             <input
@@ -209,7 +204,6 @@ function App() {
             </button>
           </>
         )}
-
         {message && <p style={{ color: "red" }}>{message}</p>}
       </div>
     );

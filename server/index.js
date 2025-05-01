@@ -34,6 +34,15 @@ const roomSchema = new mongoose.Schema({
 });
 const Room = mongoose.model("Room", roomSchema);
 
+// メッセージスキーマとモデル
+const messageSchema = new mongoose.Schema({
+  roomId: String,
+  sender: String,
+  message: String,
+  timestamp: { type: Date, default: Date.now },
+});
+const Message = mongoose.model("Message", messageSchema);
+
 const userUsernames = {};
 
 // 永続タイマー: 1分ごとに scheduledDeleteAt を確認し、削除実行
@@ -102,17 +111,13 @@ app.get("/rooms", async (req, res) => {
 
 // Socket.io通信
 io.on("connection", (socket) => {
-  // ユーザーの接続
   console.log(`🟢 User connected: ${socket.id}`);
 
-  // ユーザー名の設定
-  // ユーザー名は socket.id をキーにして保存
   socket.on("setUsername", (username) => {
     userUsernames[socket.id] = username;
-    console.log(`👤 ${socket.id} set username to ${username}`);
+    console.log(`⚪️ ${socket.id} set username to ${username}`);
   });
 
-  // ルーム入室
   socket.on("joinRoom", async ({ roomName, username }) => {
     if (username) {
       userUsernames[socket.id] = username;
@@ -121,21 +126,23 @@ io.on("connection", (socket) => {
     const room = await Room.findOne({ roomName });
     if (!room) return;
 
-    const roomId = room._id.toString(); // socket.join にはIDでもOK
-    socket.join(roomId); // 内部ルーム名としては_idを使ってもいい
+    const roomId = room._id.toString();
+    socket.join(roomId);
     await Room.findByIdAndUpdate(room._id, { scheduledDeleteAt: null });
 
     const finalUsername = userUsernames[socket.id] || "不明ユーザー";
     console.log(`🔵 ${finalUsername} joined room ${roomName}`);
 
-    // 入室通知
+    // 過去のメッセージ履歴を送信
+    const history = await Message.find({ roomId }).sort({ timestamp: 1 });
+    socket.emit("chatHistory", history);
+
     io.to(roomId).emit("receiveMessage", {
       message: `${finalUsername} が入室しました`,
       sender: "System",
     });
   });
 
-  // ルーム退室
   socket.on("leaveRoom", async (roomName) => {
     const username = userUsernames[socket.id] || "不明ユーザー";
 
@@ -145,15 +152,12 @@ io.on("connection", (socket) => {
     const roomId = room._id.toString();
     socket.leave(roomId);
 
-    // 退室通知
     io.to(roomId).emit("receiveMessage", {
       message: `${username} が退室しました`,
       sender: "System",
     });
     console.log(`🟠 ${username} left room ${roomName}`);
 
-    // ルームのメンバー数を確認
-    // ルームに誰もいなければ，ルーム削除予定時間を設定
     const socketsInRoom = await io.in(roomId).fetchSockets();
     if (socketsInRoom.length === 0) {
       const deletionTime = new Date(Date.now() + 60000);
@@ -161,12 +165,11 @@ io.on("connection", (socket) => {
         scheduledDeleteAt: deletionTime,
       });
       console.log(
-        `🕒 Room ${roomName} scheduled for deletion at ${deletionTime.toISOString()}`
+        `⏱️ Room ${roomName} scheduled for deletion at ${deletionTime.toISOString()}`
       );
     }
   });
 
-  // メッセージ送信
   socket.on("sendMessage", async ({ roomName, message }) => {
     const sender = userUsernames[socket.id] || "Unknown";
     const room = await Room.findOne({ roomName });
@@ -174,9 +177,11 @@ io.on("connection", (socket) => {
 
     const roomId = room._id.toString();
     io.to(roomId).emit("receiveMessage", { message, sender });
+
+    // メッセージ保存
+    await Message.create({ roomId, sender, message });
   });
 
-  // 切断時の処理
   socket.on("disconnecting", async () => {
     const username = userUsernames[socket.id] || "不明ユーザー";
 
@@ -187,15 +192,12 @@ io.on("connection", (socket) => {
 
         const roomId = room._id.toString();
 
-        // 退室通知
         io.to(roomId).emit("receiveMessage", {
           message: `${username} が退室しました`,
           sender: "System",
         });
         console.log(`🟠 ${username} left room ${room.roomName}`);
 
-        // ルームのメンバー数を確認
-        // ルームに誰もいなければ，ルーム削除予定時間を設定
         const socketsInRoom = await io.in(roomId).fetchSockets();
         if (socketsInRoom.length === 0) {
           const deletionTime = new Date(Date.now() + 60000);
@@ -210,13 +212,11 @@ io.on("connection", (socket) => {
         }
       }
     }
-    // ユーザー切断
     delete userUsernames[socket.id];
     console.log(`🔴 User disconnected: ${socket.id}`);
   });
 });
 
-// サーバー起動
 server.listen(3000, () => {
   console.log("🚀 Server running on http://localhost:3000");
 });
