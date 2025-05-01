@@ -33,17 +33,21 @@ function App() {
     };
   }, []);
 
+  // ルーム一覧を取得する関数
   const fetchRooms = async () => {
     const res = await axios.get(ROOM_API);
     setRooms(res.data);
   };
 
+  // ログイン成功時の処理
   const handleLoginSuccess = (userId) => {
     localStorage.setItem("userId", userId);
     setUserId(userId);
     setMessage("");
+    socket.emit("setUsername", userId); // ← 追加するのはここ！
   };
 
+  // 新規登録処理
   const handleRegister = async () => {
     try {
       const res = await axios.post(`${API_BASE}/register`, {
@@ -56,6 +60,7 @@ function App() {
     }
   };
 
+  // ログイン処理
   const handleLogin = async () => {
     try {
       const res = await axios.post(`${API_BASE}/login`, {
@@ -68,6 +73,7 @@ function App() {
     }
   };
 
+  // ログアウト処理
   const handleLogout = () => {
     localStorage.removeItem("userId");
     setUserId("");
@@ -78,28 +84,42 @@ function App() {
     setMessages([]);
   };
 
+  // ルーム作成処理
   const createRoom = async () => {
     if (!roomName.trim()) return;
-    await axios.post(ROOM_API, {
-      roomName,
-      creatorSocketId: socket.id,
-      creatorUserId: userId,
-    });
-    setRoomName("");
-    fetchRooms();
+    try {
+      await axios.post(ROOM_API, {
+        roomName,
+        creatorSocketId: socket.id,
+        creatorUserId: userId,
+      });
+      setRoomName("");
+      fetchRooms();
+    } catch (err) {
+      if (err.response?.status === 409) {
+        alert("同じルーム名がすでに存在します");
+      } else {
+        alert("ルーム作成に失敗しました");
+      }
+    }
   };
 
-  const joinRoom = (roomId) => {
+  // ルームに入室する処理
+  const joinRoom = (name) => {
     socket.emit("setUsername", userId);
-    socket.emit("joinRoom", roomId);
-    setCurrentRoom(roomId);
+    socket.emit("joinRoom", {
+      roomName: name,
+      username: userId,
+    });
+    setCurrentRoom(name);
     setMessages([]);
   };
 
+  // メッセージ送信処理
   const sendMessage = () => {
     if (messageInput.trim() && currentRoom) {
       socket.emit("sendMessage", {
-        roomId: currentRoom,
+        roomName: currentRoom,
         message: messageInput,
         sender: userId,
       });
@@ -107,11 +127,12 @@ function App() {
     }
   };
 
-  const deleteRoom = async (roomId) => {
-    await axios.post(`${ROOM_API}/${roomId}/delete`, {
+  // ルーム削除処理
+  const deleteRoom = async (roomName) => {
+    await axios.post(`${ROOM_API}/${roomName}/delete`, {
       requesterUserId: userId,
     });
-    if (currentRoom === roomId) {
+    if (currentRoom === roomName) {
       setCurrentRoom(null);
       setMessages([]);
     }
@@ -218,14 +239,14 @@ function App() {
                 {room.roomName}
                 <button
                   style={{ marginLeft: "10px" }}
-                  onClick={() => joinRoom(room._id)}
+                  onClick={() => joinRoom(room.roomName)}
                 >
                   入室
                 </button>
                 {room.creatorUserId === userId && (
                   <button
                     style={{ marginLeft: "5px", color: "red" }}
-                    onClick={() => deleteRoom(room._id)}
+                    onClick={() => deleteRoom(room.roomName)}
                   >
                     削除
                   </button>
