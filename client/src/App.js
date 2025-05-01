@@ -11,12 +11,13 @@ function App() {
   const [discriminator, setDiscriminator] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-
   const [roomName, setRoomName] = useState("");
   const [rooms, setRooms] = useState([]);
   const [currentRoom, setCurrentRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const API_BASE = "http://localhost:3000/api/auth";
   const ROOM_API = "http://localhost:3000/rooms";
@@ -54,6 +55,10 @@ function App() {
   };
 
   const handleRegister = async () => {
+    if (authMode === "register" && password !== confirmPassword) {
+      setMessage("パスワードが一致しません");
+      return;
+    }
     try {
       const res = await axios.post(`${API_BASE}/register`, {
         username,
@@ -177,15 +182,38 @@ function App() {
             />
             <br />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing)
-                  handleRegister();
+                  authMode === "register" ? handleRegister() : handleLogin();
               }}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? "非表示" : "表示"}
+            </button>
+
+            {authMode === "register" && (
+              <>
+                <br />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="確認用パスワード"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing)
+                      handleRegister();
+                  }}
+                />
+              </>
+            )}
+
             <br />
             <button onClick={handleRegister}>登録</button>
             <br />

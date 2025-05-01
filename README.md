@@ -95,6 +95,20 @@ show collections
 db.users.find().pretty()
 ```
 
+- 削除
+
+```bash
+// ルームを一つ削除
+db.rooms.deleteOne({ roomName: "room1" });
+
+// ルームの全メッセージ削除
+db.messages.deleteMany({ roomId: "..." });
+
+// _idで削除したい場合
+db.users.deleteOne({ _id: ObjectId("0123...") });
+
+```
+
 - 終了
 
 ```bash
@@ -110,6 +124,8 @@ exit
   - ルームを作成可能
   - ルームの作成者のみルーム削除可能
   - 誰もいないルームは一定時間後に自動削除
+- メッセージ管理
+  - 再入室してもメッセージの履歴をタイムスタンプ付きで表示
 
 ## 起動
 
