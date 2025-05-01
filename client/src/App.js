@@ -25,11 +25,14 @@ function App() {
     fetchRooms();
 
     socket.on("receiveMessage", ({ message, sender }) => {
-      setMessages((prev) => [...prev, { message, sender }]);
+      setMessages((prev) => [
+        ...prev,
+        { message, sender, timestamp: new Date().toISOString() },
+      ]);
     });
 
     socket.on("chatHistory", (history) => {
-      setMessages(history);
+      setMessages((prev) => [...prev, ...history]);
     });
 
     return () => {
@@ -133,6 +136,27 @@ function App() {
       setMessages([]);
     }
     fetchRooms();
+  };
+
+  const formatDateTime = (iso) => {
+    const date = new Date(iso);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    const timeStr = `${date.getHours().toString().padStart(2, "0")}:${date
+      .getMinutes()
+      .toString()
+      .padStart(2, "0")}`;
+
+    if (isToday) return `今日 ${timeStr}`;
+    if (isYesterday) return `昨日 ${timeStr}`;
+    return `${date.getFullYear()}/${
+      date.getMonth() + 1
+    }/${date.getDate()} ${timeStr}`;
   };
 
   if (!userId) {
@@ -263,8 +287,40 @@ function App() {
             }}
           >
             {messages.map((msg, idx) => (
-              <div key={idx}>
-                <strong>{msg.sender}</strong>: {msg.message}
+              <div
+                key={idx}
+                style={
+                  msg.sender === "System"
+                    ? {
+                        fontStyle: "italic",
+                        color: "gray",
+                        textAlign: "center",
+                        margin: "8px 0",
+                      }
+                    : {}
+                }
+              >
+                {msg.sender === "System" ? (
+                  <>
+                    {msg.message}
+                    <div style={{ fontSize: "0.75em", color: "#888" }}>
+                      {msg.timestamp ? formatDateTime(msg.timestamp) : ""}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <strong>{msg.sender}</strong>: {msg.message}
+                    <span
+                      style={{
+                        marginLeft: "8px",
+                        color: "#888",
+                        fontSize: "0.8em",
+                      }}
+                    >
+                      {msg.timestamp ? formatDateTime(msg.timestamp) : ""}
+                    </span>
+                  </>
+                )}
               </div>
             ))}
           </div>
