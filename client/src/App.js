@@ -7,8 +7,11 @@ const socket = io("http://localhost:3000");
 function App() {
   const [userId, setUserId] = useState(localStorage.getItem("userId") || "");
   const [authMode, setAuthMode] = useState("login");
-  const [username, setUsername] = useState("");
-  const [discriminator, setDiscriminator] = useState("");
+  const [userName, setUserName] = useState("");
+  const [displayName, setDisplayName] = useState(
+    localStorage.getItem("displayName") || ""
+  );
+  const [newDisplayName, setNewDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [roomName, setRoomName] = useState("");
@@ -47,11 +50,13 @@ function App() {
     setRooms(res.data);
   };
 
-  const handleLoginSuccess = (userId) => {
-    localStorage.setItem("userId", userId);
-    setUserId(userId);
+  const handleLoginSuccess = (userName, displayName) => {
+    localStorage.setItem("userId", userName);
+    localStorage.setItem("displayName", displayName);
+    setUserId(userName);
+    setDisplayName(displayName);
     setMessage("");
-    socket.emit("setUsername", userId);
+    socket.emit("setUserName", displayName);
   };
 
   const handleRegister = async () => {
@@ -61,10 +66,11 @@ function App() {
     }
     try {
       const res = await axios.post(`${API_BASE}/register`, {
-        username,
+        userName,
         password,
+        displayName,
       });
-      handleLoginSuccess(res.data.userId);
+      handleLoginSuccess(res.data.userName, res.data.displayName);
     } catch (err) {
       setMessage(err.response?.data?.error || "登録エラー");
     }
@@ -73,10 +79,11 @@ function App() {
   const handleLogin = async () => {
     try {
       const res = await axios.post(`${API_BASE}/login`, {
-        userId: `${username}#${discriminator}`,
+        userName,
         password,
+        displayName,
       });
-      handleLoginSuccess(res.data.userId);
+      handleLoginSuccess(res.data.userName, res.data.displayName);
     } catch (err) {
       setMessage(err.response?.data?.error || "ログインエラー");
     }
@@ -84,12 +91,28 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem("userId");
+    localStorage.removeItem("displayName");
     setUserId("");
-    setUsername("");
+    setUserName("");
     setPassword("");
-    setDiscriminator("");
     setCurrentRoom(null);
     setMessages([]);
+  };
+
+  const updateDisplayName = async () => {
+    try {
+      const res = await axios.put(`${API_BASE}/updateDisplayName`, {
+        userName: userId,
+        newDisplayName,
+      });
+
+      setDisplayName(res.data.displayName);
+      localStorage.setItem("displayName", res.data.displayName);
+      socket.emit("setUserName", res.data.displayName);
+      setMessage("表示名を更新しました");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "表示名の更新に失敗しました");
+    }
   };
 
   const createRoom = async () => {
@@ -98,7 +121,7 @@ function App() {
       await axios.post(ROOM_API, {
         roomName,
         creatorSocketId: socket.id,
-        creatorUserId: userId,
+        creatorUserName: userName,
       });
       setRoomName("");
       fetchRooms();
@@ -112,13 +135,25 @@ function App() {
   };
 
   const joinRoom = (name) => {
-    socket.emit("setUsername", userId);
+    socket.emit("setUserName", displayName);
     socket.emit("joinRoom", {
       roomName: name,
-      username: userId,
+      displayName,
     });
     setCurrentRoom(name);
     setMessages([]);
+  };
+
+  const deleteRoom = async (roomName) => {
+    await axios.post(`${ROOM_API}/${roomName}/delete`, {
+      requesterUserName: userId,
+      displayName,
+    });
+    if (currentRoom === roomName) {
+      setCurrentRoom(null);
+      setMessages([]);
+    }
+    fetchRooms();
   };
 
   const sendMessage = () => {
@@ -130,17 +165,6 @@ function App() {
       });
       setMessageInput("");
     }
-  };
-
-  const deleteRoom = async (roomName) => {
-    await axios.post(`${ROOM_API}/${roomName}/delete`, {
-      requesterUserId: userId,
-    });
-    if (currentRoom === roomName) {
-      setCurrentRoom(null);
-      setMessages([]);
-    }
-    fetchRooms();
   };
 
   const formatDateTime = (iso) => {
@@ -172,14 +196,21 @@ function App() {
           <>
             <input
               type="text"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              placeholder="UserName"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing)
                   handleRegister();
               }}
             />
+            <input
+              type="text"
+              placeholder="表示名"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+
             <br />
             <input
               type={showPassword ? "text" : "password"}
@@ -225,18 +256,10 @@ function App() {
           <>
             <input
               type="text"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              placeholder="UserName"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
             />{" "}
-            <span>#</span>
-            <input
-              type="text"
-              placeholder="1234"
-              value={discriminator}
-              onChange={(e) => setDiscriminator(e.target.value)}
-              maxLength={4}
-            />
             <br />
             <input
               type="password"
@@ -264,7 +287,17 @@ function App() {
   return (
     <div style={{ padding: "20px" }}>
       <h1>チャットアプリ</h1>
-      <p>ログイン中: {userId}</p>
+      <p>
+        ログイン中: {displayName}({userName})
+      </p>
+      <h3>表示名を変更</h3>
+      <input
+        type="text"
+        placeholder="新しい表示名"
+        value={newDisplayName}
+        onChange={(e) => setNewDisplayName(e.target.value)}
+      />
+      <button onClick={updateDisplayName}>変更</button>
       <button onClick={handleLogout}>ログアウト</button>
 
       {!currentRoom && (
@@ -289,7 +322,7 @@ function App() {
                 >
                   入室
                 </button>
-                {room.creatorUserId === userId && (
+                {room.creatorUserName === userName && (
                   <button
                     style={{ marginLeft: "5px", color: "red" }}
                     onClick={() => deleteRoom(room.roomName)}

@@ -28,7 +28,7 @@ mongoose
 const roomSchema = new mongoose.Schema({
   roomName: { type: String, unique: true },
   creatorSocketId: String,
-  creatorUserId: String,
+  creatorUserName: String,
   createdAt: { type: Date, default: Date.now },
   scheduledDeleteAt: Date,
 });
@@ -43,7 +43,7 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model("Message", messageSchema);
 
-const userUsernames = {};
+const userUserNames = {};
 
 // 永続タイマー: 1分ごとに scheduledDeleteAt を確認し、削除実行
 setInterval(async () => {
@@ -57,11 +57,11 @@ setInterval(async () => {
 
 // ルーム作成
 app.post("/rooms", async (req, res) => {
-  const { roomName, creatorSocketId, creatorUserId } = req.body;
-  if (!roomName || !creatorSocketId || !creatorUserId) {
-    return res
-      .status(400)
-      .json({ error: "roomName, creatorSocketId, creatorUserId are required" });
+  const { roomName, creatorSocketId, creatorUserName } = req.body;
+  if (!roomName || !creatorSocketId || !creatorUserName) {
+    return res.status(400).json({
+      error: "roomName, creatorSocketId, creatorUserName are required",
+    });
   }
 
   try {
@@ -70,7 +70,7 @@ app.post("/rooms", async (req, res) => {
       return res.status(409).json({ error: "同じルーム名がすでに存在します" });
     }
 
-    const newRoom = new Room({ roomName, creatorSocketId, creatorUserId });
+    const newRoom = new Room({ roomName, creatorSocketId, creatorUserName });
     await newRoom.save();
     res.status(201).json(newRoom);
   } catch (err) {
@@ -81,20 +81,20 @@ app.post("/rooms", async (req, res) => {
 
 // ルーム削除
 app.post("/rooms/:roomName/delete", async (req, res) => {
-  const { requesterUserId } = req.body;
+  const { requesterUserName, displayName } = req.body;
   const { roomName } = req.params;
 
   const room = await Room.findOne({ roomName });
   if (!room) return res.status(404).json({ error: "Room not found" });
 
-  if (room.creatorUserId !== requesterUserId) {
+  if (room.creatorUserName !== requesterUserName) {
     return res
       .status(403)
       .json({ error: "Only the creator can delete this room" });
   }
 
   await Room.deleteOne({ roomName });
-  console.log(`🗑️ Room ${roomName} deleted manually by ${requesterUserId}`);
+  console.log(`🗑️ Room ${roomName} deleted manually by ${displayName}`);
   res.json({ message: "Room deleted successfully" });
 });
 
@@ -113,14 +113,14 @@ app.get("/rooms", async (req, res) => {
 io.on("connection", (socket) => {
   console.log(`🟢 User connected: ${socket.id}`);
 
-  socket.on("setUsername", (username) => {
-    userUsernames[socket.id] = username;
-    console.log(`⚪️ ${socket.id} set username to ${username}`);
+  socket.on("setUserName", (displayName) => {
+    userUserNames[socket.id] = displayName;
+    console.log(`⚪️ ${socket.id} set displayName to ${displayName}`);
   });
 
-  socket.on("joinRoom", async ({ roomName, username }) => {
-    if (username) {
-      userUsernames[socket.id] = username;
+  socket.on("joinRoom", async ({ roomName, displayName }) => {
+    if (displayName) {
+      userUserNames[socket.id] = displayName;
     }
 
     const room = await Room.findOne({ roomName });
@@ -130,21 +130,20 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     await Room.findByIdAndUpdate(room._id, { scheduledDeleteAt: null });
 
-    const finalUsername = userUsernames[socket.id] || "不明ユーザー";
-    console.log(`🔵 ${finalUsername} joined room ${roomName}`);
+    const finalDisplayName = userUserNames[socket.id] || "不明ユーザー";
+    console.log(`🔵 ${finalDisplayName} joined room ${roomName}`);
 
-    // 過去のメッセージ履歴を送信
     const history = await Message.find({ roomId }).sort({ timestamp: 1 });
     socket.emit("chatHistory", history);
 
     io.to(roomId).emit("receiveMessage", {
-      message: `${finalUsername} が入室しました`,
+      message: `${finalDisplayName} が入室しました`,
       sender: "System",
     });
   });
 
   socket.on("leaveRoom", async (roomName) => {
-    const username = userUsernames[socket.id] || "不明ユーザー";
+    const displayName = userUserNames[socket.id] || "不明ユーザー";
 
     const room = await Room.findOne({ roomName });
     if (!room) return;
@@ -153,10 +152,10 @@ io.on("connection", (socket) => {
     socket.leave(roomId);
 
     io.to(roomId).emit("receiveMessage", {
-      message: `${username} が退室しました`,
+      message: `${displayName} が退室しました`,
       sender: "System",
     });
-    console.log(`🟠 ${username} left room ${roomName}`);
+    console.log(`🟠 ${displayName} left room ${roomName}`);
 
     const socketsInRoom = await io.in(roomId).fetchSockets();
     if (socketsInRoom.length === 0) {
@@ -171,7 +170,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("sendMessage", async ({ roomName, message }) => {
-    const sender = userUsernames[socket.id] || "Unknown";
+    const sender = userUserNames[socket.id] || "Unknown";
     const room = await Room.findOne({ roomName });
     if (!room) return;
 
@@ -183,7 +182,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnecting", async () => {
-    const username = userUsernames[socket.id] || "不明ユーザー";
+    const userName = userUserNames[socket.id] || "不明ユーザー";
 
     for (const joinedRoomId of socket.rooms) {
       if (joinedRoomId !== socket.id) {
@@ -193,10 +192,10 @@ io.on("connection", (socket) => {
         const roomId = room._id.toString();
 
         io.to(roomId).emit("receiveMessage", {
-          message: `${username} が退室しました`,
+          message: `${userName} が退室しました`,
           sender: "System",
         });
-        console.log(`🟠 ${username} left room ${room.roomName}`);
+        console.log(`🟠 ${userName} left room ${room.roomName}`);
 
         const socketsInRoom = await io.in(roomId).fetchSockets();
         if (socketsInRoom.length === 0) {
@@ -212,7 +211,7 @@ io.on("connection", (socket) => {
         }
       }
     }
-    delete userUsernames[socket.id];
+    delete userUserNames[socket.id];
     console.log(`🔴 User disconnected: ${socket.id}`);
   });
 });

@@ -4,18 +4,19 @@
 
 ## 構成
 
-```
+```bash
 chat-app
-├── client
+├── client                # フロントエンド（React）
 │   └── src
-│      └── App.js（メイン画面）
+│      └── App.js         # メイン画面
 │      └── index.js
-├── server
-│   └── index.js（サーバー）
+├── server                # バックエンド（Node.js + Express）
+│   └── index.js          # サーバーのエントリーポイント
 │       └── models
-│           └── User.js
+│           └── User.js   # ユーザーモデル
 │       └── routes
-│           └── auth.js
+│           └── auth.js   # 認証ルート
+├── README.md
 ```
 
 ## 技術スタック
@@ -118,8 +119,9 @@ exit
 ## 基本機能
 
 - ユーザー管理
-  - Discriminator 型（例：user#0123）
+  - 一意なユーザーネーム
   - ユーザーネーム + パスワードによるログイン・ログアウト
+  - 表示名を設定可能
 - ルーム管理
   - ルームを作成可能
   - ルームの作成者のみルーム削除可能

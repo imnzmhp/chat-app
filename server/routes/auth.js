@@ -5,10 +5,9 @@ const User = require("../models/User");
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
-  const { username, password } = req.body;
-  const discriminator = Math.floor(1000 + Math.random() * 9000).toString();
+  const { userName, password, displayName } = req.body;
 
-  if (!username || !password) {
+  if (!userName || !password) {
     return res.status(400).json({ error: "UsernameとPasswordが必要です。" });
   }
 
@@ -21,17 +20,18 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    const userId = `${username}#${discriminator}`;
-    const existing = await User.findOne({ username, discriminator });
-    if (existing) {
-      return res.status(409).json({ error: "同じユーザーがすでに存在します" });
+    const existingUser = await User.findOne({ userName });
+    if (existingUser) {
+      return res
+        .status(400)
+        .json({ error: "このユーザー名はすでに使われています" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, discriminator, hashedPassword });
+    const newUser = new User({ userName, hashedPassword, displayName });
     await newUser.save();
 
-    res.status(201).json({ userId });
+    res.status(201).json({ userName, displayName });
   } catch (err) {
     console.error("登録エラー:", err);
     res.status(500).json({ error: "ユーザー登録中にエラーが発生しました。" });
@@ -40,14 +40,13 @@ router.post("/register", async (req, res) => {
 
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
-  const { userId, password } = req.body;
-  if (!userId || !password) {
-    return res.status(400).json({ error: "UserIDとPasswordが必要です。" });
+  const { userName, password, displayName } = req.body;
+  if (!userName || !password) {
+    return res.status(400).json({ error: "UsernameとPasswordが必要です。" });
   }
 
   try {
-    const [username, discriminator] = userId.split("#");
-    const user = await User.findOne({ username, discriminator });
+    const user = await User.findOne({ userName });
     if (!user)
       return res.status(401).json({ error: "ユーザーが見つかりません" });
 
@@ -55,10 +54,35 @@ router.post("/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ error: "パスワードが間違っています" });
 
-    res.json({ userId });
+    res.json({ userName: user.userName, displayName: user.displayName });
   } catch (err) {
     console.error("ログインエラー:", err);
     res.status(500).json({ error: "ログイン中にエラーが発生しました。" });
+  }
+});
+
+router.put("/updateDisplayName", async (req, res) => {
+  const { userName, newDisplayName } = req.body;
+
+  if (!userName || !newDisplayName) {
+    return res.status(400).json({ error: "必要な情報が不足しています。" });
+  }
+
+  try {
+    const user = await User.findOneAndUpdate(
+      { userName },
+      { displayName: newDisplayName },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: "ユーザーが見つかりません" });
+    }
+
+    res.json({ userName: user.userName, displayName: user.displayName });
+  } catch (err) {
+    console.error("表示名更新エラー:", err);
+    res.status(500).json({ error: "表示名の更新に失敗しました。" });
   }
 });
 
